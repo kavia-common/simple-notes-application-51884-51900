@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { listNotes } from "../api/client";
+import { listNotes } from "../storage/notesStorage";
 import { Button, Card, Container, InlineMessage, styles } from "../components/ui";
 
 function snippet(text, maxLen = 120) {
@@ -9,20 +9,9 @@ function snippet(text, maxLen = 120) {
   return clean.length > maxLen ? `${clean.slice(0, maxLen)}…` : clean;
 }
 
-function normalizeNote(n) {
-  // Be tolerant to backend field naming differences.
-  return {
-    id: n.id ?? n.note_id ?? n.uuid,
-    title: n.title ?? "",
-    content: n.content ?? n.body ?? "",
-    updated_at: n.updated_at ?? n.updatedAt ?? n.modified_at ?? null,
-    created_at: n.created_at ?? n.createdAt ?? null,
-  };
-}
-
 // PUBLIC_INTERFACE
 export default function NotesList() {
-  /** Notes list page: fetches and displays notes, links to /notes/:id and /new. */
+  /** Notes list page: loads notes from localStorage and links to /notes/:id and /new. */
   const navigate = useNavigate();
 
   const [notes, setNotes] = useState([]);
@@ -30,7 +19,6 @@ export default function NotesList() {
   const [error, setError] = useState("");
 
   const sortedNotes = useMemo(() => {
-    // If timestamps are present, sort newest first; otherwise keep returned order.
     const copy = [...notes];
     copy.sort((a, b) => {
       const ta = new Date(a.updated_at || a.created_at || 0).getTime();
@@ -40,13 +28,12 @@ export default function NotesList() {
     return copy;
   }, [notes]);
 
-  async function refresh() {
+  function refresh() {
     setStatus("loading");
     setError("");
     try {
-      const data = await listNotes();
-      const arr = Array.isArray(data) ? data : data?.items || [];
-      setNotes(arr.map(normalizeNote).filter((n) => n.id != null));
+      const data = listNotes();
+      setNotes(Array.isArray(data) ? data : []);
       setStatus("success");
     } catch (e) {
       setError(e?.message || "Failed to load notes.");
@@ -176,12 +163,7 @@ export default function NotesList() {
         </Card>
 
         <div style={{ marginTop: 14, color: styles.colors.subtleText, fontSize: 12 }}>
-          API base:{" "}
-          <code>
-            {process.env.REACT_APP_API_BASE_URL ||
-              process.env.REACT_APP_API_BASE ||
-              "http://localhost:3001"}
-          </code>
+          Storage: <code>localStorage</code>
         </div>
       </Container>
     </div>

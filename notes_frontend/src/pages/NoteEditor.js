@@ -1,15 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
-import { createNote, deleteNote, getNote, updateNote } from "../api/client";
+import { createNote, deleteNote, getNote, updateNote } from "../storage/notesStorage";
 import { Button, Card, Container, InlineMessage, Input, TextArea, styles } from "../components/ui";
-
-function normalizeNote(n) {
-  return {
-    id: n.id ?? n.note_id ?? n.uuid,
-    title: n.title ?? "",
-    content: n.content ?? n.body ?? "",
-  };
-}
 
 function isNonEmptyString(s) {
   return typeof s === "string" && s.trim().length > 0;
@@ -36,12 +28,10 @@ export default function NoteEditor() {
   const initialSnapshot = useRef({ title: "", content: "" });
 
   const isDirty = useMemo(() => {
-    return (
-      title !== initialSnapshot.current.title || content !== initialSnapshot.current.content
-    );
+    return title !== initialSnapshot.current.title || content !== initialSnapshot.current.content;
   }, [title, content]);
 
-  async function load() {
+  function load() {
     if (isNew) {
       setStatus("idle");
       setLoadError("");
@@ -57,10 +47,16 @@ export default function NoteEditor() {
     setBannerInfo("");
 
     try {
-      const note = normalizeNote(await getNote(id));
-      setTitle(note.title);
-      setContent(note.content);
-      initialSnapshot.current = { title: note.title, content: note.content };
+      const note = getNote(id);
+      if (!note) {
+        setLoadError("Note not found (it may have been deleted).");
+        setStatus("error");
+        return;
+      }
+
+      setTitle(note.title || "");
+      setContent(note.content || "");
+      initialSnapshot.current = { title: note.title || "", content: note.content || "" };
       setStatus("idle");
     } catch (e) {
       setLoadError(e?.message || "Failed to load note.");
@@ -84,7 +80,7 @@ export default function NoteEditor() {
     return !isNonEmptyString(errors.title) && !isNonEmptyString(errors.content);
   }
 
-  async function onSave() {
+  function onSave() {
     setBannerError("");
     setBannerInfo("");
 
@@ -93,18 +89,17 @@ export default function NoteEditor() {
     setStatus("saving");
     try {
       if (isNew) {
-        const created = await createNote({ title: title.trim(), content });
-        const createdId = created?.id ?? created?.note_id ?? created?.uuid;
+        const created = createNote({ title: title.trim(), content });
+        const createdId = created?.id;
         setBannerInfo("Saved.");
-        // Navigate to canonical edit route when possible.
+
         if (createdId != null) {
           navigate(`/notes/${encodeURIComponent(createdId)}`, { replace: true });
         } else {
-          // Stay on page if no id returned.
           setStatus("idle");
         }
       } else {
-        await updateNote(id, { title: title.trim(), content });
+        updateNote(id, { title: title.trim(), content });
         initialSnapshot.current = { title, content };
         setBannerInfo("Saved.");
         setStatus("idle");
@@ -115,7 +110,7 @@ export default function NoteEditor() {
     }
   }
 
-  async function onDelete() {
+  function onDelete() {
     if (isNew) return;
 
     setBannerError("");
@@ -124,10 +119,9 @@ export default function NoteEditor() {
     const ok = window.confirm("Delete this note? This cannot be undone.");
     if (!ok) return;
 
-    // Optimistic navigation after successful delete.
     setStatus("deleting");
     try {
-      await deleteNote(id);
+      deleteNote(id);
       navigate("/", { replace: true });
     } catch (e) {
       setBannerError(e?.message || "Delete failed.");
@@ -186,7 +180,13 @@ export default function NoteEditor() {
             <InlineMessage kind="error">
               {loadError}{" "}
               <button
-                onClick={load}
+                onClick={() => {
+                  if (loadError.toLowerCase().includes("not found")) {
+                    navigate("/", { replace: true });
+                    return;
+                  }
+                  load();
+                }}
                 style={{
                   marginLeft: 8,
                   border: "none",
@@ -197,7 +197,7 @@ export default function NoteEditor() {
                   padding: 0,
                 }}
               >
-                Retry
+                {loadError.toLowerCase().includes("not found") ? "Go to list" : "Retry"}
               </button>
             </InlineMessage>
           </div>

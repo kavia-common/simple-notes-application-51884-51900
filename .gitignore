@@ -206,3 +206,11 @@ marimo/_static/
 marimo/_lsp/
 __marimo__/
 .file_activity_report.json
+
+# Removed containers (frontend-only repo)
+simple-notes-application-51884-51899/notes_backend/
+simple-notes-application-51884-51901/database/
+simple-notes-application-51884-51899/notes_backend/venv/
+simple-notes-application-51884-51899/notes_backend/.venv/
+simple-notes-application-51884-51901/database/db_visualizer/node_modules/
+simple-notes-application-51884-51901/database/db_visualizer/public/
